@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SoundFlow - Full Music & Firestore</title>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-base: #121212;
+      --bg-card: #181818;
+      --bg-card-hover: #282828;
+      --text-base: #b3b3b3;
+      --text-white: #ffffff;
+      --spotify-green: #1db954;
+      --spotify-green-hover: #1ed760;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Figtree', sans-serif; }
+    body { background-color: #000; color: var(--text-white); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Layout */
+    .top-container { display: flex; flex: 1; height: calc(100vh - 90px); padding: 8px; gap: 8px; }
+
+    /* Sidebar */
+    .sidebar { width: 280px; display: flex; flex-direction: column; gap: 8px; }
+    .sidebar-box { background-color: var(--bg-base); border-radius: 8px; padding: 16px; }
+    .logo-container { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 700; margin-bottom: 20px; }
+    .logo-icon { width: 24px; height: 24px; background-color: var(--text-white); border-radius: 50%; display: flex; justify-content: center; align-items: center; color: black; font-size: 14px; }
+    
+    .nav-links { list-style: none; display: flex; flex-direction: column; gap: 16px; font-weight: 600; }
+    .nav-links li { color: var(--text-base); cursor: pointer; transition: color 0.2s; display: flex; align-items: center; gap: 16px; font-size: 16px; }
+    .nav-links li:hover, .nav-links li.active { color: var(--text-white); }
+    
+    .library { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+    .library-header { color: var(--text-base); font-weight: 700; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+    .playlist-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+    .playlist-item { color: var(--text-base); font-size: 14px; cursor: pointer; padding: 6px 0; transition: color 0.2s; }
+    .playlist-item:hover { color: var(--text-white); }
+
+    /* Main View */
+    .main-view { flex: 1; background: linear-gradient(to bottom, #2a2a2a 0%, var(--bg-base) 100%); border-radius: 8px; overflow-y: auto; position: relative; }
+    .top-bar { position: sticky; top: 0; background: rgba(18, 18, 18, 0.8); backdrop-filter: blur(10px); padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; z-index: 10; }
+    .search-container { display: flex; background: #242424; border-radius: 500px; padding: 10px 16px; width: 350px; }
+    .search-container input { background: transparent; border: none; color: white; width: 100%; font-size: 14px; outline: none; }
+    
+    .auth-btn { background: var(--text-white); border-radius: 50px; padding: 8px 20px; font-weight: 700; font-size: 14px; cursor: pointer; border: none; color: black; transition: transform 0.2s; }
+    .auth-btn:hover { transform: scale(1.04); }
+
+    .content-padding { padding: 24px; }
+    h2 { font-size: 24px; font-weight: 700; margin-bottom: 20px; }
+
+    /* Cards & Grid */
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 24px; }
+    .card { background: var(--bg-card); padding: 16px; border-radius: 8px; cursor: pointer; transition: background-color 0.3s; position: relative; }
+    .card:hover { background: var(--bg-card-hover); }
+    .card-img-container { position: relative; margin-bottom: 16px; border-radius: 6px; overflow: hidden; aspect-ratio: 1; }
+    .card img { width: 100%; height: 100%; object-fit: cover; }
+    
+    .card-play-btn { position: absolute; bottom: 8px; right: 8px; width: 48px; height: 48px; background-color: var(--spotify-green); border-radius: 50%; display: flex; justify-content: center; align-items: center; color: black; font-size: 20px; opacity: 0; transform: translateY(8px); transition: all 0.3s; border: none; }
+    .card:hover .card-play-btn { opacity: 1; transform: translateY(0); }
+    
+    .like-btn { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.6); border: none; color: white; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; font-size: 16px; display: flex; justify-content: center; align-items: center; }
+    .like-btn.liked { color: var(--spotify-green); }
+
+    .card h4 { font-size: 16px; font-weight: 700; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card p { font-size: 14px; color: var(--text-base); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+    /* Player Bar */
+    .player { height: 90px; background-color: #000; padding: 0 24px; display: flex; justify-content: space-between; align-items: center; z-index: 20; border-top: 1px solid #282828; }
+    .now-playing { width: 30%; display: flex; align-items: center; gap: 14px; }
+    .now-playing img { width: 56px; height: 56px; border-radius: 4px; object-fit: cover; }
+    .track-info h4 { font-size: 14px; font-weight: 600; }
+    .track-info p { font-size: 12px; color: var(--text-base); }
+
+    /* Hidden YouTube Player Frame */
+    .yt-player-container { width: 300px; height: 50px; overflow: hidden; border-radius: 8px; }
+    iframe { width: 100%; height: 100%; border: none; }
+
+    /* Modal */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; z-index: 100; }
+    .modal { background: #242424; padding: 32px; border-radius: 12px; width: 360px; text-align: center; }
+    .modal h3 { margin-bottom: 20px; }
+    .modal input { width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 4px; border: none; background: #333; color: white; }
+    .modal-btn { width: 100%; padding: 12px; background: var(--spotify-green); border: none; border-radius: 50px; font-weight: 700; cursor: pointer; margin-bottom: 10px; }
+    .close-modal { color: var(--text-base); cursor: pointer; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+  <div class="top-container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-box">
+        <div class="logo-container"><div class="logo-icon">♬</div> SoundFlow</div>
+        <ul class="nav-links">
+          <li class="active" onclick="loadSection('home')">🏠 Home</li>
+          <li onclick="loadSection('liked')">💚 Liked Songs</li>
+        </ul>
+      </div>
+      
+      <div class="sidebar-box library">
+        <div class="library-header">
+          <span>📚 Your Playlists</span>
+          <button onclick="createPlaylist()" style="background:none; border:none; color:white; cursor:pointer; font-size:18px;">+</button>
+        </div>
+        <ul class="playlist-list" id="playlistList">
+          <li class="playlist-item">Sign in to view playlists</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Main View -->
+    <div class="main-view">
+      <div class="top-bar">
+        <div class="search-container">
+          <span style="color: var(--text-base); margin-right: 8px;">🔍</span>
+          <input type="text" id="searchInput" placeholder="What do you want to listen to?" onkeypress="if(event.key === 'Enter') searchMusic()">
+        </div>
+        <button class="auth-btn" id="authBtn" onclick="toggleAuthModal()">Log in</button>
+      </div>
+      
+      <div class="content-padding">
+        <h2 id="section-title">Popular right now</h2>
+        <div class="grid" id="resultsGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Player -->
+  <div class="player">
+    <div class="now-playing">
+      <div id="coverContainer"><div style="width:56px;height:56px;background:#282828;border-radius:4px;"></div></div>
+      <div class="track-info">
+        <h4 id="playerTitle">Select a track</h4>
+        <p id="playerArtist">---</p>
+      </div>
+    </div>
+
+    <!-- Embedded YouTube Player for Full Audio Tracks -->
+    <div class="yt-player-container">
+      <iframe id="ytPlayer" src="https://www.youtube.com/embed/?enablejsapi=1" allow="autoplay"></iframe>
+    </div>
+  </div>
+
+  <!-- Auth Modal -->
+  <div class="modal-overlay" id="authModal">
+    <div class="modal">
+      <h3 id="modalTitle">Log in to SoundFlow</h3>
+      <input type="email" id="authEmail" placeholder="Email address">
+      <input type="password" id="authPassword" placeholder="Password">
+      <button class="modal-btn" onclick="handleEmailAuth()">Continue</button>
+      <button class="modal-btn" style="background:#4285F4; color:white;" onclick="handleGoogleAuth()">Sign in with Google</button>
+      <p class="close-modal" onclick="toggleAuthModal()">Cancel</p>
+    </div>
+  </div>
+
+  <!-- Firebase Modular Scripts -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // 1. YOUR FIREBASE CONFIGURATION (Replace with your actual keys from Firebase Console)
+ const firebaseConfig = {
+  apiKey: "AIzaSyBTPtRVU0QisN0WtHXWkHibdvAQMQtwjNY",
+  authDomain: "soundflow-by-panth.firebaseapp.com",
+  databaseURL: "https://soundflow-by-panth-default-rtdb.firebaseio.com",
+  projectId: "soundflow-by-panth",
+  storageBucket: "soundflow-by-panth.firebasestorage.app",
+  messagingSenderId: "773735351695",
+  appId: "1:773735351695:web:f4f97b2f2e0c35f41db7fa",
+  measurementId: "G-GYN984HX8S"
+};
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let currentUser = null;
+    let likedSongs = [];
+
+    // Auth State Observer
+    onAuthStateChanged(auth, async (user) => {
+      currentUser = user;
+      const authBtn = document.getElementById('authBtn');
+
+      if (user) {
+        authBtn.innerText = "Log out";
+        authBtn.onclick = () => signOut(auth);
+        
+        // Listen to User's Firestore Data
+        const userDocRef = doc(db, "users", user.uid);
+        onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            likedSongs = docSnap.data().likedSongs || [];
+            renderPlaylists(docSnap.data().playlists || []);
+          } else {
+            // Create user document if new
+            setDoc(userDocRef, { likedSongs: [], playlists: ["My First Playlist"] });
+          }
+        });
+      } else {
+        authBtn.innerText = "Log in";
+        authBtn.onclick = () => toggleAuthModal();
+        document.getElementById('playlistList').innerHTML = '<li class="playlist-item">Sign in to view playlists</li>';
+        likedSongs = [];
+      }
+    });
+
+    // Auth Functions
+    window.handleGoogleAuth = async () => {
+      const provider = new GoogleAuthProvider();
+      try {
+        await signInWithPopup(auth, provider);
+        toggleAuthModal();
+      } catch (e) { alert(e.message); }
+    };
+
+    window.handleEmailAuth = async () => {
+      const email = document.getElementById('authEmail').value;
+      const pass = document.getElementById('authPassword').value;
+      try {
+        await signInWithEmailAndPassword(auth, email, pass);
+        toggleAuthModal();
+      } catch (e) {
+        // If user doesn't exist, register them automatically
+        try {
+          await createUserWithEmailAndPassword(auth, email, pass);
+          toggleAuthModal();
+        } catch (err) { alert(err.message); }
+      }
+    };
+
+    // Toggle Liked Song in Firestore
+    window.toggleLike = async (track, event) => {
+      event.stopPropagation();
+      if (!currentUser) return alert("Please log in to save liked songs!");
+
+      const userDocRef = doc(db, "users", currentUser.uid);
+      const isLiked = likedSongs.some(item => item.trackId === track.trackId);
+
+      if (isLiked) {
+        await updateDoc(userDocRef, { likedSongs: arrayRemove(track) });
+      } else {
+        await updateDoc(userDocRef, { likedSongs: arrayUnion(track) });
+      }
+    };
+
+    // Create Playlist in Firestore
+    window.createPlaylist = async () => {
+      if (!currentUser) return alert("Please log in to create playlists!");
+      const name = prompt("Enter playlist name:");
+      if (!name) return;
+
+      const userDocRef = doc(db, "users", currentUser.uid);
+      await updateDoc(userDocRef, { playlists: arrayUnion(name) });
+    };
+
+    function renderPlaylists(playlists) {
+      const list = document.getElementById('playlistList');
+      list.innerHTML = playlists.map(p => `<li class="playlist-item">🎵 ${p}</li>`).join('');
+    }
+  </script>
+
+  <script>
+    // Search & Player Functions
+    function handleiTunesResponse(data) {
+      const grid = document.getElementById('resultsGrid');
+      grid.innerHTML = '';
+
+      if (!data.results || data.results.length === 0) {
+        grid.innerHTML = '<p style="color: var(--text-base);">No results found.</p>';
+        return;
+      }
+
+      data.results.forEach(track => {
+        const artwork = track.artworkUrl100 ? track.artworkUrl100.replace('100x100bb', '400x400bb') : '';
+        const card = document.createElement('div');
+        card.className = 'card';
+        
+        card.innerHTML = `
+          <div class="card-img-container">
+            <img src="${artwork}" alt="Cover">
+            <button class="like-btn" onclick="toggleLike({trackId: ${track.trackId}, trackName: '${escape(track.trackName)}', artistName: '${escape(track.artistName)}', artwork: '${artwork}'}, event)">♥</button>
+            <button class="card-play-btn">▶</button>
+          </div>
+          <h4>${track.trackName}</h4>
+          <p>${track.artistName}</p>
+        `;
+
+        // Click to play FULL SONG via YouTube Search Stream
+        card.onclick = () => playFullSong(track.trackName, track.artistName, artwork);
+        grid.appendChild(card);
+      });
+    }
+
+    function playFullSong(title, artist, artwork) {
+      document.getElementById('playerTitle').innerText = title;
+      document.getElementById('playerArtist').innerText = artist;
+      document.getElementById('coverContainer').innerHTML = `<img src="${artwork}" style="width:56px;height:56px;border-radius:4px;">`;
+
+      // Pass query to YouTube embed player to search & play full track automatically
+      const searchQuery = encodeURIComponent(`${title} ${artist} audio`);
+      document.getElementById('ytPlayer').src = `https://www.youtube.com/embed?listType=search&list=${searchQuery}&autoplay=1`;
+    }
+
+    function searchMusic() {
+      const query = document.getElementById('searchInput').value;
+      if (!query) return;
+
+      document.getElementById('section-title').innerText = `Results for "${query}"`;
+      const grid = document.getElementById('resultsGrid');
+      grid.innerHTML = '<p style="color: var(--text-base);">Loading songs...</p>';
+
+      const oldScript = document.getElementById('jsonpScript');
+      if (oldScript) oldScript.remove();
+
+      const script = document.createElement('script');
+      script.id = 'jsonpScript';
+      script.src = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=15&callback=handleiTunesResponse`;
+      document.body.appendChild(script);
+    }
+
+    function toggleAuthModal() {
+      const modal = document.getElementById('authModal');
+      modal.style.display = modal.style.display === 'flex' ? 'none' : 'flex';
+    }
+
+    window.onload = () => {
+      document.getElementById('searchInput').value = "Top Hits";
+      searchMusic();
+      document.getElementById('searchInput').value = "";
+    };
+  </script>
+
+</body>
+</html>
